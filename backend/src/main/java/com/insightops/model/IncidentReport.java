@@ -29,6 +29,9 @@ public class IncidentReport {
     @Column(columnDefinition = "TEXT")
     private String analysis;
 
+    @Column(nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'READY'")
+    private String status = "IN_PROGRESS";
+
     private Instant timestamp;
 
     @JsonIgnore

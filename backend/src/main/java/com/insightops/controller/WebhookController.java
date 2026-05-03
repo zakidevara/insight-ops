@@ -1,13 +1,12 @@
 package com.insightops.controller;
 
+import com.insightops.event.AlertEvent;
+import com.insightops.kafka.AlertProducer;
 import com.insightops.model.Alert;
 import com.insightops.model.IncidentReport;
-import com.insightops.repository.IncidentReportRepository;
-import com.insightops.service.PostMortemCitationLinker;
-import com.insightops.service.SreAssistant;
+import com.insightops.service.IncidentReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,10 +19,8 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class WebhookController {
 
-    private final SreAssistant sreAssistant;
-    private final IncidentReportRepository reportRepository;
-    private final SimpMessagingTemplate messagingTemplate;
-    private final PostMortemCitationLinker citationLinker;
+    private final IncidentReportService reportService;
+    private final AlertProducer alertProducer;
 
     @PostMapping
     public ResponseEntity<IncidentReport> receiveAlert(@RequestBody Alert alert) {
@@ -31,24 +28,25 @@ public class WebhookController {
             alert.setTimestamp(Instant.now());
         }
 
-        String analysis = sreAssistant.analyzeIncident(alert);
-
         IncidentReport report = IncidentReport.builder()
-            .alertService(alert.getService())
-            .alertSeverity(alert.getSeverity())
-            .alertMessage(alert.getMessage())
-            .analysis(analysis)
-            .timestamp(alert.getTimestamp())
-            .build();
+                .alertService(alert.getService())
+                .alertSeverity(alert.getSeverity())
+                .alertMessage(alert.getMessage())
+                .timestamp(alert.getTimestamp())
+                .status("IN_PROGRESS")
+                .build();
 
-        report = reportRepository.save(report);
+        report = reportService.save(report);
+        reportService.broadcast(report);
 
-        // Link cited post mortems from the RAG pastIncidents field
-        citationLinker.linkCitations(report, analysis);
+        alertProducer.send(new AlertEvent(
+                report.getId(),
+                alert.getService(),
+                alert.getSeverity(),
+                alert.getMessage(),
+                alert.getTimestamp()
+        ));
 
-        // Push to WebSocket subscribers
-        messagingTemplate.convertAndSend("/topic/reports", report);
-
-        return ResponseEntity.ok(report);
+        return ResponseEntity.accepted().body(report);
     }
 }
