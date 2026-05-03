@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useReports } from '../hooks/useReports';
 import AlertFeed from './AlertFeed';
 import IncidentDetail from './IncidentDetail';
-import IngestPanel from './IngestPanel';
 
 export default function Dashboard() {
   const { reports, loading, error } = useReports();
@@ -22,8 +21,9 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
-        <IngestPanel />
-
+        <div>
+          <h2 className="text-xl font-bold">Incident Reports</h2>
+        </div>
         {loading && <p className="text-gray-500 text-sm">Loading reports…</p>}
         {error   && <p className="text-red-400 text-sm">Error: {error}</p>}
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchPostMortems } from '../api/client';
 import PostMortemCard from '../components/PostMortemCard';
+import IngestPanel from '../components/IngestPanel';
 
 export default function PostMortemList() {
   const [postMortems, setPostMortems] = useState([]);
@@ -24,7 +25,11 @@ export default function PostMortemList() {
         </div>
       </header>
 
+      
       <div className="max-w-5xl mx-auto px-6 py-6">
+        <div className=" py-3 mb-6">
+          <IngestPanel />
+        </div>
         {loading && <p className="text-gray-500 text-sm">Loading post mortems…</p>}
         {error   && <p className="text-red-400 text-sm">Error: {error}</p>}
 
