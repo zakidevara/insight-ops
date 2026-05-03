@@ -1,5 +1,37 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import SeverityBadge from './SeverityBadge';
 import ThoughtProcess from './ThoughtProcess';
+import { fetchPostMortemsForIncident } from '../api/client';
+
+function PostMortemLink({ incidentId, title }) {
+  const [postMortems, setPostMortems] = useState(null);
+
+  useEffect(() => {
+    fetchPostMortemsForIncident(incidentId).then(setPostMortems).catch(() => setPostMortems([]));
+  }, [incidentId]);
+
+  const match = postMortems?.find(
+    pm => pm.title?.toLowerCase() === title?.toLowerCase()
+  );
+
+  if (!postMortems) {
+    return <span className="text-xs bg-gray-700 text-gray-400 px-2 py-1 rounded">{title}</span>;
+  }
+
+  if (match) {
+    return (
+      <Link
+        to={`/postmortems/${match.id}`}
+        className="text-xs bg-blue-900 hover:bg-blue-800 text-blue-200 px-2 py-1 rounded transition-colors"
+      >
+        📄 {title}
+      </Link>
+    );
+  }
+
+  return <span className="text-xs bg-gray-700 text-gray-400 px-2 py-1 rounded">{title}</span>;
+}
 
 export default function IncidentDetail({ report, onBack }) {
   let parsed;
@@ -50,6 +82,17 @@ export default function IncidentDetail({ report, onBack }) {
               {parsed.remediation?.map((step, i) => <li key={i}>{step}</li>)}
             </ol>
           </div>
+
+          {parsed.pastIncidents?.length > 0 && (
+            <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <h3 className="text-md font-semibold text-white mb-3">Referenced Post Mortems</h3>
+              <div className="flex flex-wrap gap-2">
+                {parsed.pastIncidents.map((title, i) => (
+                  <PostMortemLink key={i} incidentId={report.id} title={title} />
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

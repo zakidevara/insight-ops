@@ -23,4 +23,13 @@ export const ingestFile = (file, type = 'markdown') => {
   }).then(res => res.data);
 };
 
+export const fetchPostMortems = () =>
+  api.get('/postmortems').then(res => res.data);
+
+export const fetchPostMortem = (id) =>
+  api.get(`/postmortems/${id}`).then(res => res.data);
+
+export const fetchPostMortemsForIncident = (incidentId) =>
+  api.get(`/incidents/${incidentId}/postmortems`).then(res => res.data);
+
 export default api;

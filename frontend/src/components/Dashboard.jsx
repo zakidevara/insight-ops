@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useReports } from '../hooks/useReports';
 import AlertFeed from './AlertFeed';
 import IncidentDetail from './IncidentDetail';
@@ -10,9 +11,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 px-6 py-4">
-        <h1 className="text-xl font-bold">InsightOps</h1>
-        <p className="text-sm text-gray-400">Intelligent SRE Assistant</p>
+      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">InsightOps</h1>
+          <p className="text-sm text-gray-400">Intelligent SRE Assistant</p>
+        </div>
+        <Link to="/postmortems" className="text-sm text-blue-400 hover:underline">
+          Post Mortems →
+        </Link>
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">

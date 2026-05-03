@@ -3,6 +3,7 @@ package com.insightops.controller;
 import com.insightops.model.Alert;
 import com.insightops.model.IncidentReport;
 import com.insightops.repository.IncidentReportRepository;
+import com.insightops.service.PostMortemCitationLinker;
 import com.insightops.service.SreAssistant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ public class WebhookController {
     private final SreAssistant sreAssistant;
     private final IncidentReportRepository reportRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final PostMortemCitationLinker citationLinker;
 
     @PostMapping
     public ResponseEntity<IncidentReport> receiveAlert(@RequestBody Alert alert) {
@@ -40,6 +42,9 @@ public class WebhookController {
             .build();
 
         report = reportRepository.save(report);
+
+        // Link cited post mortems from the RAG pastIncidents field
+        citationLinker.linkCitations(report, analysis);
 
         // Push to WebSocket subscribers
         messagingTemplate.convertAndSend("/topic/reports", report);
