@@ -1,7 +1,7 @@
 package com.insightops.kafka;
 
-import com.insightops.event.AlertEvent;
-import com.insightops.model.Alert;
+import com.insightops.event.IncidentEvent;
+import com.insightops.model.Incident;
 import com.insightops.repository.IncidentReportRepository;
 import com.insightops.service.IncidentReportService;
 import com.insightops.service.PostMortemCitationLinker;
@@ -14,16 +14,16 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AlertConsumer {
+public class IncidentConsumer {
 
     private final IncidentReportRepository reportRepository;
     private final IncidentReportService reportService;
     private final SreAssistant sreAssistant;
     private final PostMortemCitationLinker citationLinker;
 
-    @KafkaListener(topics = AlertProducer.TOPIC, groupId = "sre-analysis")
-    public void consume(AlertEvent event) {
-        log.info("Consuming AlertEvent for incident {}", event.incidentId());
+    @KafkaListener(topics = IncidentProducer.TOPIC, groupId = "sre-analysis")
+    public void consume(IncidentEvent event) {
+        log.info("Consuming IncidentEvent for incident {}", event.incidentId());
 
         var report = reportRepository.findById(event.incidentId()).orElse(null);
         if (report == null) {
@@ -32,13 +32,13 @@ public class AlertConsumer {
         }
 
         try {
-            Alert alert = new Alert();
-            alert.setService(event.service());
-            alert.setSeverity(event.severity());
-            alert.setMessage(event.message());
-            alert.setTimestamp(event.timestamp());
+            Incident incident = new Incident();
+            incident.setService(event.service());
+            incident.setSeverity(event.severity());
+            incident.setMessage(event.message());
+            incident.setTimestamp(event.timestamp());
 
-            String analysis = sreAssistant.analyzeIncident(alert);
+            String analysis = sreAssistant.analyzeIncident(incident);
 
             report.setAnalysis(analysis);
             report.setStatus("READY");

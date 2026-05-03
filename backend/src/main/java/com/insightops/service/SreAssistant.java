@@ -1,6 +1,6 @@
 package com.insightops.service;
 
-import com.insightops.model.Alert;
+import com.insightops.model.Incident;
 import io.modelcontextprotocol.client.McpSyncClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
@@ -21,11 +21,11 @@ public class SreAssistant {
     @Autowired(required = false)
     private List<McpSyncClient> mcpClients;
 
-    public String analyzeIncident(Alert alert) {
+    public String analyzeIncident(Incident incident) {
         var clients = (mcpClients != null) ? mcpClients : List.<McpSyncClient>of();
 
         String systemPrompt = """
-            You are an SRE assistant. For this alert:
+            You are an SRE assistant. For this incident:
             Service: %s
             Severity: %s
 
@@ -40,14 +40,13 @@ public class SreAssistant {
             - "toolsUsed": array of objects with "tool" and "reason" fields
             - "remediation": array of recommended steps
             - "confidence": "high" | "medium" | "low"
-            """.formatted(alert.getService(), alert.getSeverity());
+            """.formatted(incident.getService(), incident.getSeverity());
 
         var req = chatClient.prompt()
             .system(systemPrompt)
-            .user(alert.getMessage());
+            .user(incident.getMessage());
 
         if (!clients.isEmpty()) {
-            // SyncMcpToolCallbackProvider.syncToolCallbacks() is the correct M6 static API
             var toolCallbacks = SyncMcpToolCallbackProvider.syncToolCallbacks(clients);
             if (!toolCallbacks.isEmpty()) {
                 req = req.tools(new SyncMcpToolCallbackProvider(clients).getToolCallbacks());

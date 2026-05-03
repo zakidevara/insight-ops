@@ -1,6 +1,6 @@
 package com.insightops.config;
 
-import com.insightops.kafka.AlertProducer;
+import com.insightops.kafka.IncidentProducer;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,8 +10,8 @@ import org.springframework.kafka.config.TopicBuilder;
 public class KafkaTopicConfig {
 
     @Bean
-    public NewTopic alertsTopic() {
-        return TopicBuilder.name(AlertProducer.TOPIC)
+    public NewTopic incidentsTopic() {
+        return TopicBuilder.name(IncidentProducer.TOPIC)
                 .partitions(1)
                 .replicas(1)
                 .build();

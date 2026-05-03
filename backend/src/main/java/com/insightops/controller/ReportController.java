@@ -23,7 +23,7 @@ public class ReportController {
     public List<IncidentReport> listReports(
             @RequestParam(required = false) String service) {
         if (service != null) {
-            return reportRepository.findByAlertServiceOrderByTimestampDesc(service);
+            return reportRepository.findByServiceOrderByTimestampDesc(service);
         }
         return reportRepository.findTop50ByOrderByTimestampDesc();
     }

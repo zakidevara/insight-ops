@@ -32,6 +32,6 @@ public class IncidentReportService {
     }
 
     public List<IncidentReport> findByService(String service) {
-        return repository.findByAlertServiceOrderByTimestampDesc(service);
+        return repository.findByServiceOrderByTimestampDesc(service);
     }
 }

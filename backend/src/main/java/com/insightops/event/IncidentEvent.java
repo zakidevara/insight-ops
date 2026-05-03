@@ -2,7 +2,7 @@ package com.insightops.event;
 
 import java.time.Instant;
 
-public record AlertEvent(
+public record IncidentEvent(
         String incidentId,
         String service,
         String severity,

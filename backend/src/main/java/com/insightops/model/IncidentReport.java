@@ -20,11 +20,14 @@ public class IncidentReport {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    private String alertService;
-    private String alertSeverity;
+    @Column(name = "alert_service")
+    private String service;
 
-    @Column(columnDefinition = "TEXT")
-    private String alertMessage;
+    @Column(name = "alert_severity")
+    private String severity;
+
+    @Column(name = "alert_message", columnDefinition = "TEXT")
+    private String message;
 
     @Column(columnDefinition = "TEXT")
     private String analysis;

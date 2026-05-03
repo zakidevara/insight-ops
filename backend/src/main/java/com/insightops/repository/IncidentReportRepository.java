@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface IncidentReportRepository extends JpaRepository<IncidentReport, String> {
     List<IncidentReport> findTop50ByOrderByTimestampDesc();
-    List<IncidentReport> findByAlertServiceOrderByTimestampDesc(String service);
+    List<IncidentReport> findByServiceOrderByTimestampDesc(String service);
 }

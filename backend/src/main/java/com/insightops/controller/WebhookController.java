@@ -1,8 +1,8 @@
 package com.insightops.controller;
 
-import com.insightops.event.AlertEvent;
-import com.insightops.kafka.AlertProducer;
-import com.insightops.model.Alert;
+import com.insightops.event.IncidentEvent;
+import com.insightops.kafka.IncidentProducer;
+import com.insightops.model.Incident;
 import com.insightops.model.IncidentReport;
 import com.insightops.service.IncidentReportService;
 import lombok.RequiredArgsConstructor;
@@ -20,31 +20,31 @@ import java.time.Instant;
 public class WebhookController {
 
     private final IncidentReportService reportService;
-    private final AlertProducer alertProducer;
+    private final IncidentProducer incidentProducer;
 
     @PostMapping
-    public ResponseEntity<IncidentReport> receiveAlert(@RequestBody Alert alert) {
-        if (alert.getTimestamp() == null) {
-            alert.setTimestamp(Instant.now());
+    public ResponseEntity<IncidentReport> receiveIncident(@RequestBody Incident incident) {
+        if (incident.getTimestamp() == null) {
+            incident.setTimestamp(Instant.now());
         }
 
         IncidentReport report = IncidentReport.builder()
-                .alertService(alert.getService())
-                .alertSeverity(alert.getSeverity())
-                .alertMessage(alert.getMessage())
-                .timestamp(alert.getTimestamp())
+                .service(incident.getService())
+                .severity(incident.getSeverity())
+                .message(incident.getMessage())
+                .timestamp(incident.getTimestamp())
                 .status("IN_PROGRESS")
                 .build();
 
         report = reportService.save(report);
         reportService.broadcast(report);
 
-        alertProducer.send(new AlertEvent(
+        incidentProducer.send(new IncidentEvent(
                 report.getId(),
-                alert.getService(),
-                alert.getSeverity(),
-                alert.getMessage(),
-                alert.getTimestamp()
+                incident.getService(),
+                incident.getSeverity(),
+                incident.getMessage(),
+                incident.getTimestamp()
         ));
 
         return ResponseEntity.accepted().body(report);

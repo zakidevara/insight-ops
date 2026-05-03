@@ -9,7 +9,7 @@ import java.time.Instant;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Alert {
+public class Incident {
     private String service;
     private String message;
     private String severity; // P1, P2, P3, P4
