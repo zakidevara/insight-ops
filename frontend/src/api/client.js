@@ -12,8 +12,8 @@ export const fetchReports = (service) => {
 export const fetchReport = (id) =>
   api.get(`/reports/${id}`).then(res => res.data);
 
-export const submitAlert = (alert) =>
-  api.post('/webhook', alert).then(res => res.data);
+export const submitIncident = (incident) =>
+  api.post('/webhook', incident).then(res => res.data);
 
 export const ingestFile = (file, type = 'markdown') => {
   const formData = new FormData();

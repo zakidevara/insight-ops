@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
-import { submitAlert } from '../api/client';
+import { submitIncident } from '../api/client';
 
 const SEVERITIES = ['P1', 'P2', 'P3', 'P4'];
 
@@ -23,7 +23,7 @@ export default function DeclareIncidentModal({ onClose }) {
     setSubmitting(true);
     setError(null);
     try {
-      await submitAlert({
+      await submitIncident({
         service,
         message,
         severity,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useReports } from '../hooks/useReports';
-import AlertFeed from './AlertFeed';
+import IncidentFeed from './IncidentFeed';
 import IncidentDetail from './IncidentDetail';
 import DeclareIncidentModal from './DeclareIncidentModal';
 
@@ -43,7 +43,7 @@ export default function Dashboard() {
         {selected ? (
           <IncidentDetail report={selected} onBack={() => setSelected(null)} />
         ) : (
-          <AlertFeed reports={reports} onSelect={setSelected} />
+          <IncidentFeed reports={reports} onSelect={setSelected} />
         )}
       </div>
     </div>

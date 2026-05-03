@@ -34,8 +34,10 @@ function PostMortemLink({ incidentId, title }) {
 }
 
 export default function IncidentDetail({ report, onBack }) {
+  const inProgress = report.status === 'IN_PROGRESS';
+
   let parsed;
-  try { parsed = JSON.parse(report.analysis); } catch { parsed = null; }
+  try { parsed = inProgress ? null : JSON.parse(report.analysis); } catch { parsed = null; }
 
   return (
     <div className="space-y-6">
@@ -43,23 +45,40 @@ export default function IncidentDetail({ report, onBack }) {
         ← Back to feed
       </button>
 
-      {/* Alert header */}
+      {/* Incident header */}
       <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
         <div className="flex items-center gap-3 mb-2">
-          <SeverityBadge severity={report.alertSeverity} />
-          <span className="font-mono text-sm text-gray-300">{report.alertService}</span>
+          <SeverityBadge severity={report.severity} />
+          <span className="font-mono text-sm text-gray-300">{report.service}</span>
+          {inProgress && (
+            <span className="flex items-center gap-1.5 text-xs text-yellow-400 ml-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+              Analyzing
+            </span>
+          )}
           <span className="text-xs text-gray-500 ml-auto">
             {new Date(report.timestamp).toLocaleString()}
           </span>
         </div>
-        <p className="text-gray-200">{report.alertMessage}</p>
+        <p className="text-gray-200">{report.message}</p>
       </div>
 
+      {/* Analysis loading state */}
+      {inProgress && (
+        <div className="bg-gray-900 rounded-lg p-8 border border-gray-700 flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <p className="text-gray-400 text-sm">LLM analysis in progress…</p>
+          <p className="text-gray-600 text-xs">This may take a minute. The page will update automatically.</p>
+        </div>
+      )}
+
       {/* Thought process */}
-      <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
-        <h3 className="text-md font-semibold text-white mb-3">Thought Process</h3>
-        <ThoughtProcess analysis={report.analysis} />
-      </div>
+      {!inProgress && (
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
+          <h3 className="text-md font-semibold text-white mb-3">Thought Process</h3>
+          <ThoughtProcess analysis={report.analysis} />
+        </div>
+      )}
 
       {/* Diagnosis + Remediation */}
       {parsed && (
