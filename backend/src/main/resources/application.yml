@@ -1,0 +1,49 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/insightops
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: deepseek-r1:8b
+      embedding:
+        options:
+          model: nomic-embed-text
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        dimensions: 768        # nomic-embed-text produces 768-dim vectors
+        distance-type: COSINE_DISTANCE
+    mcp:
+      client:
+        # Set to true and uncomment clients below to enable Phase 2 MCP tools.
+        # Requires Node.js / npx installed on the host.
+        enabled: false
+        # enabled: true
+        # clients:
+        #   shell:
+        #     transport:
+        #       type: stdio
+        #       command: "npx"
+        #       args: ["-y", "@modelcontextprotocol/server-shell"]
+        #   prometheus:
+        #     transport:
+        #       type: stdio
+        #       command: "npx"
+        #       args: ["-y", "@modelcontextprotocol/server-prometheus"]
+        #       env:
+        #         PROMETHEUS_URL: "http://localhost:9090"
+        #   kubernetes:
+        #     transport:
+        #       type: stdio
+        #       command: "npx"
+        #       args: ["-y", "@modelcontextprotocol/server-kubernetes"]

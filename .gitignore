@@ -1,0 +1,24 @@
+# Backend
+backend/.gradle/
+backend/build/
+backend/.idea/
+*.iml
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Spring Boot static (production build target)
+backend/src/main/resources/static/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
