@@ -61,11 +61,11 @@ public class PostMortemCitationLinker {
         if (analysisJson == null || analysisJson.isBlank()) return results;
 
         try {
-            // Strip <think>…</think> tags that DeepSeek-R1 may prepend
-            String cleaned = analysisJson.replaceAll("(?s)<think>.*?</think>", "").trim();
-            // Extract JSON object portion if there's leading text
-            int jsonStart = cleaned.indexOf('{');
-            if (jsonStart > 0) cleaned = cleaned.substring(jsonStart);
+            String cleaned = extractJsonObject(analysisJson);
+            if (cleaned == null) {
+                log.warn("No JSON object found in analysis response");
+                return results;
+            }
 
             JsonNode root = objectMapper.readTree(cleaned);
             JsonNode pastIncidents = root.get("pastIncidents");
@@ -78,5 +78,17 @@ public class PostMortemCitationLinker {
             log.warn("Could not parse pastIncidents from analysis JSON: {}", e.getMessage());
         }
         return results;
+    }
+
+    private String extractJsonObject(String raw) {
+        // Strip DeepSeek-R1 <think> blocks
+        String s = raw.replaceAll("(?s)<think>.*?</think>", "").trim();
+        // Strip markdown code fences (```json ... ``` or ``` ... ```)
+        s = s.replaceAll("(?s)```(?:json)?\\s*", "").trim();
+        // Extract the JSON object by first { and matching last }
+        int start = s.indexOf('{');
+        int end   = s.lastIndexOf('}');
+        if (start < 0 || end < 0 || end <= start) return null;
+        return s.substring(start, end + 1);
     }
 }

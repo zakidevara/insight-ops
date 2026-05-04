@@ -83,29 +83,28 @@ function ReportPane({ report, parsed, isGenerating, isFailed, postmortems, provi
   return (
     <div className="grid grid-cols-3 gap-5">
       <div className="col-span-2 space-y-4">
-        {/* Reasoning trace */}
-        <Card title="AI reasoning" accent="sky"
-              right={
-                <span className="flex items-center gap-1.5 text-[10.5px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-white/[0.03] ring-1 ring-white/[0.06]">
-                  <span className={`w-1.5 h-1.5 rounded-full ${providerDot}`}/>
-                  via {providerLabel}
-                </span>
-              }>
-          {isGenerating ? <StreamingTrace/> : (
-            <div className="space-y-2.5">
-              {(parsed?.toolsUsed || []).map((t, i) => (
-                <div key={i} className="flex items-start gap-3 text-[12.5px]">
-                  <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>
-                  <span className="font-mono text-[11.5px] px-1.5 py-0.5 rounded bg-white/[0.04] text-emerald-300 shrink-0">{t.tool}</span>
-                  <span className="text-zinc-300">{t.reason}</span>
-                </div>
-              ))}
-              {(!parsed?.toolsUsed || parsed.toolsUsed.length === 0) && (
-                <p className="text-[12.5px] text-zinc-400 whitespace-pre-wrap">{report.analysis}</p>
-              )}
-            </div>
-          )}
-        </Card>
+        {/* Reasoning trace — only shown while generating or when MCP tools were actually invoked */}
+        {(isGenerating || (parsed?.toolsUsed?.length > 0)) && (
+          <Card title="AI reasoning" accent="sky"
+                right={
+                  <span className="flex items-center gap-1.5 text-[10.5px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-white/[0.03] ring-1 ring-white/[0.06]">
+                    <span className={`w-1.5 h-1.5 rounded-full ${providerDot}`}/>
+                    via {providerLabel}
+                  </span>
+                }>
+            {isGenerating ? <StreamingTrace/> : (
+              <div className="space-y-2.5">
+                {parsed.toolsUsed.map((t, i) => (
+                  <div key={i} className="flex items-start gap-3 text-[12.5px]">
+                    <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>
+                    <span className="font-mono text-[11.5px] px-1.5 py-0.5 rounded bg-white/[0.04] text-emerald-300 shrink-0">{t.tool}</span>
+                    <span className="text-zinc-300">{t.reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Diagnosis */}
         <Card title="Diagnosis"
@@ -211,9 +210,11 @@ export default function IncidentDetail({ report, onBack, provider }) {
   let parsed = null;
   if (!isGenerating && !isFailed && report.analysis) {
     try {
-      const cleaned = report.analysis.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-      const start = cleaned.indexOf('{');
-      parsed = JSON.parse(start >= 0 ? cleaned.slice(start) : cleaned);
+      let s = report.analysis.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      s = s.replace(/```(?:json)?\s*/g, '').trim();
+      const start = s.indexOf('{');
+      const end   = s.lastIndexOf('}');
+      if (start >= 0 && end > start) parsed = JSON.parse(s.slice(start, end + 1));
     } catch { parsed = null; }
   }
 

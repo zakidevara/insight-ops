@@ -31,7 +31,7 @@ spring:
       base-url: http://localhost:11434
       chat:
         options:
-          model: deepseek-r1:8b
+          model: qwen2.5:7b
       embedding:
         options:
           model: nomic-embed-text
@@ -46,21 +46,20 @@ spring:
       base-url: https://generativelanguage.googleapis.com/v1beta/openai
       chat:
         options:
-          model: gemini-2.0-flash
+          model: gemini-2.5-flash
       embedding:
         enabled: false   # embeddings stay with Ollama (nomic-embed-text)
     mcp:
       client:
         # Set to true and uncomment clients below to enable Phase 2 MCP tools.
         # Requires Node.js / npx installed on the host.
-        enabled: false
-        # enabled: true
-        # clients:
-        #   shell:
-        #     transport:
-        #       type: stdio
-        #       command: "npx"
-        #       args: ["-y", "@modelcontextprotocol/server-shell"]
+        enabled: true
+        clients:
+          shell:
+            transport:
+              type: stdio
+              command: "npx"
+              args: ["-y", "@modelcontextprotocol/server-shell"]
         #   prometheus:
         #     transport:
         #       type: stdio

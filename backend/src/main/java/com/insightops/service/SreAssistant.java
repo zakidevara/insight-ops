@@ -28,16 +28,16 @@ public class SreAssistant {
             Severity: %s
 
             1. Search for similar past incidents using your context.
-            2. Use available tools to check live system state.
+            2. If MCP tools are available, use them to check live system state.
             3. Synthesize a diagnosis with recommended remediation steps.
-            4. List which tools you invoked and why.
 
             Structure your response as JSON with these fields:
             - "diagnosis": your analysis of the issue
             - "pastIncidents": array of related past incident titles
-            - "toolsUsed": array of objects with "tool" and "reason" fields
             - "remediation": array of recommended steps
             - "confidence": "high" | "medium" | "low"
+
+            Do NOT invent or guess tool names. Only include real data from your context and any tools actually invoked.
             """.formatted(incident.getService(), incident.getSeverity());
 
         var req = llmProviderService.incidentChatClient().prompt()
