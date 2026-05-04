@@ -82,7 +82,7 @@ InsightOps is an AI-powered Site Reliability Engineering assistant that combines
 | **IngestionService** | Spring AI `VectorStore` | Chunks documents and stores embeddings in pgvector |
 | **PostmortemSeeder** | Spring `ApplicationRunner` | Auto-seeds the vector store with sample post-mortems on first boot |
 | **pgvector** | PostgreSQL 16 extension | Stores document embeddings (768-dim) and performs cosine-similarity search |
-| **Ollama** | Local LLM runtime | Serves `deepseek-r1:8b` for chat and `nomic-embed-text` for embeddings |
+| **Ollama** | Local LLM runtime | Serves `qwen2.5:7b` for chat and `nomic-embed-text` for embeddings |
 | **MCP Servers** | `npx` subprocesses (Phase 2) | Give the LLM live access to shell, Prometheus, and Kubernetes |
 
 ---
@@ -141,7 +141,7 @@ sequenceDiagram
     participant CC as ChatClient<br/>(Spring AI)
     participant QAA as QuestionAnswerAdvisor
     participant VEC as pgvector<br/>(Vector Store)
-    participant LLM as Ollama<br/>(deepseek-r1:8b)
+    participant LLM as Ollama<br/>(qwen2.5:7b)
     participant DB as PostgreSQL<br/>(incident_reports)
     participant WS as WebSocket Broker
     participant UI as React Dashboard
@@ -182,7 +182,7 @@ sequenceDiagram
     participant CC as ChatClient<br/>(Spring AI)
     participant QAA as QuestionAnswerAdvisor
     participant VEC as pgvector
-    participant LLM as Ollama<br/>(deepseek-r1:8b)
+    participant LLM as Ollama<br/>(qwen2.5:7b)
     participant MCP as MCP Servers<br/>(shell / k8s / prometheus)
     participant DB as PostgreSQL
     participant WS as WebSocket Broker
@@ -332,7 +332,7 @@ insightops/
 
 > **LLM / Embedding models required in Ollama:**
 > ```bash
-> ollama pull deepseek-r1:8b      # chat model (~5.2 GB)
+> ollama pull qwen2.5:7b      # chat model (~5.2 GB)
 > ollama pull nomic-embed-text    # embedding model (~274 MB)
 > ```
 

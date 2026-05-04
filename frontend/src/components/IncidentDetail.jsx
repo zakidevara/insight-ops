@@ -77,15 +77,15 @@ function ReportPane({ report, parsed, isGenerating, isFailed, postmortems, provi
     );
   }
 
-  const providerLabel = provider === 'GEMINI' ? 'Gemini · gemini-2.0-flash' : 'Ollama · deepseek-r1:8b';
+  const providerLabel = provider === 'GEMINI' ? 'Gemini · gemini-2.0-flash' : 'Ollama · qwen2.5:7b';
   const providerDot = provider === 'GEMINI' ? 'bg-sky-400' : 'bg-emerald-400';
 
   return (
     <div className="grid grid-cols-3 gap-5">
       <div className="col-span-2 space-y-4">
-        {/* Reasoning trace — only shown while generating or when MCP tools were actually invoked */}
-        {(isGenerating || (parsed?.toolsUsed?.length > 0)) && (
-          <Card title="AI reasoning" accent="sky"
+        {/* Shell tool calls — only shown while generating or when MCP tools were actually invoked */}
+        {(isGenerating || parsed?.toolsUsed?.length > 0) && (
+          <Card title="Shell tool calls" accent="sky"
                 right={
                   <span className="flex items-center gap-1.5 text-[10.5px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-white/[0.03] ring-1 ring-white/[0.06]">
                     <span className={`w-1.5 h-1.5 rounded-full ${providerDot}`}/>
@@ -93,12 +93,18 @@ function ReportPane({ report, parsed, isGenerating, isFailed, postmortems, provi
                   </span>
                 }>
             {isGenerating ? <StreamingTrace/> : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {parsed.toolsUsed.map((t, i) => (
-                  <div key={i} className="flex items-start gap-3 text-[12.5px]">
-                    <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>
-                    <span className="font-mono text-[11.5px] px-1.5 py-0.5 rounded bg-white/[0.04] text-emerald-300 shrink-0">{t.tool}</span>
-                    <span className="text-zinc-300">{t.reason}</span>
+                  <div key={i} className="rounded-md bg-black/30 ring-1 ring-white/[0.06] overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.06] bg-white/[0.02]">
+                      <span className="text-emerald-400 text-[11px]">✓</span>
+                      <span className="font-mono text-[11.5px] text-emerald-300 flex-1">{t.tool}</span>
+                    </div>
+                    {t.output && (
+                      <pre className="px-3 py-2 text-[11px] font-mono text-zinc-400 whitespace-pre-wrap leading-relaxed">
+                        {t.output}
+                      </pre>
+                    )}
                   </div>
                 ))}
               </div>

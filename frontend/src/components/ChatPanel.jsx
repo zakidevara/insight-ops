@@ -107,7 +107,7 @@ export default function ChatPanel() {
     setLlmProvider(p).then(() => setProvider(p)).catch(() => {});
   };
 
-  const providerLabel = provider === 'GEMINI' ? 'Gemini · gemini-2.0-flash' : 'Ollama · deepseek-r1:8b';
+  const providerLabel = provider === 'GEMINI' ? 'Gemini · gemini-2.0-flash' : 'Ollama · qwen2.5:7b';
 
   return (
     <>

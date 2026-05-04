@@ -9,7 +9,7 @@ function ModelDropdown({ provider, onChange }) {
   const [open, setOpen] = useState(false);
 
   const PROVIDERS = [
-    { id: 'OLLAMA', name: 'Ollama', sub: 'deepseek-r1:8b · local', dotCls: 'bg-emerald-400' },
+    { id: 'OLLAMA', name: 'Ollama', sub: 'qwen2.5:7b · local', dotCls: 'bg-emerald-400' },
     { id: 'GEMINI', name: 'Gemini', sub: 'gemini-2.0-flash · Google', dotCls: 'bg-sky-400' },
   ];
 

@@ -1,6 +1,11 @@
 server:
   port: 8080
 
+logging:
+  level:
+    org.springframework.ai.mcp: DEBUG
+    io.modelcontextprotocol: DEBUG
+
 llm:
   default-provider: OLLAMA
 
@@ -53,13 +58,7 @@ spring:
       client:
         # Set to true and uncomment clients below to enable Phase 2 MCP tools.
         # Requires Node.js / npx installed on the host.
-        enabled: true
-        clients:
-          shell:
-            transport:
-              type: stdio
-              command: "npx"
-              args: ["-y", "@modelcontextprotocol/server-shell"]
+        enabled: false   # client bean created manually in McpConfig.java
         #   prometheus:
         #     transport:
         #       type: stdio
