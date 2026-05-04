@@ -13,12 +13,15 @@ export default function IncidentFeed({ reports, onSelect }) {
     <div className="space-y-2">
       {reports.map(report => {
         const inProgress = report.status === 'IN_PROGRESS';
+        const failed = report.status === 'FAILED';
         return (
           <button
             key={report.id}
             onClick={() => onSelect(report)}
-            className="w-full text-left bg-gray-900 hover:bg-gray-800 rounded-lg p-3
-                       border border-gray-700 transition-colors"
+            className={`w-full text-left rounded-lg p-3 border transition-colors
+                        ${failed
+                          ? 'bg-red-950 hover:bg-red-900 border-red-800'
+                          : 'bg-gray-900 hover:bg-gray-800 border-gray-700'}`}
           >
             <div className="flex items-center gap-3">
               <SeverityBadge severity={report.severity} />
@@ -29,12 +32,19 @@ export default function IncidentFeed({ reports, onSelect }) {
                   Analyzing…
                 </span>
               )}
+              {failed && (
+                <span className="text-xs text-red-400 font-medium">Analysis failed</span>
+              )}
               <span className="text-xs text-gray-500 ml-auto">
                 {new Date(report.timestamp).toLocaleString()}
               </span>
             </div>
-            <p className="text-gray-400 text-sm mt-1 truncate">
-              {inProgress ? 'LLM analysis in progress…' : report.message}
+            <p className="text-sm mt-1 truncate">
+              {inProgress
+                ? <span className="text-gray-400">LLM analysis in progress…</span>
+                : failed
+                  ? <span className="text-red-400">Analysis could not be completed</span>
+                  : <span className="text-gray-400">{report.message}</span>}
             </p>
           </button>
         );

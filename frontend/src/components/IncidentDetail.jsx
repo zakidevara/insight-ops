@@ -35,9 +35,10 @@ function PostMortemLink({ incidentId, title }) {
 
 export default function IncidentDetail({ report, onBack }) {
   const inProgress = report.status === 'IN_PROGRESS';
+  const failed = report.status === 'FAILED';
 
   let parsed;
-  try { parsed = inProgress ? null : JSON.parse(report.analysis); } catch { parsed = null; }
+  try { parsed = (inProgress || failed) ? null : JSON.parse(report.analysis); } catch { parsed = null; }
 
   return (
     <div className="space-y-6">
@@ -56,6 +57,9 @@ export default function IncidentDetail({ report, onBack }) {
               Analyzing
             </span>
           )}
+          {failed && (
+            <span className="text-xs text-red-400 font-medium ml-2">Analysis failed</span>
+          )}
           <span className="text-xs text-gray-500 ml-auto">
             {new Date(report.timestamp).toLocaleString()}
           </span>
@@ -72,8 +76,22 @@ export default function IncidentDetail({ report, onBack }) {
         </div>
       )}
 
+      {/* Analysis failed state */}
+      {failed && (
+        <div className="bg-red-950 rounded-lg p-6 border border-red-800 flex items-start gap-3">
+          <span className="text-red-400 text-lg mt-0.5">✕</span>
+          <div>
+            <p className="text-red-300 text-sm font-medium">Analysis failed</p>
+            <p className="text-red-400 text-xs mt-1">
+              The LLM could not complete the analysis for this incident.
+              Check the backend logs for details, then re-declare the incident if needed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Thought process */}
-      {!inProgress && (
+      {!inProgress && !failed && (
         <div className="bg-gray-900 rounded-lg p-4 border border-gray-700">
           <h3 className="text-md font-semibold text-white mb-3">Thought Process</h3>
           <ThoughtProcess analysis={report.analysis} />

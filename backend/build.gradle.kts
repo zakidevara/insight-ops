@@ -40,6 +40,7 @@ dependencies {
 
     // Spring AI
     implementation("org.springframework.ai:spring-ai-ollama-spring-boot-starter")
+    implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter")
     implementation("org.springframework.ai:spring-ai-pgvector-store-spring-boot-starter")
     implementation("org.springframework.ai:spring-ai-mcp-client-spring-boot-starter")
     implementation("org.springframework.ai:spring-ai-pdf-document-reader")
@@ -61,6 +62,22 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Load .env from the project root into the bootRun process environment.
+// Spring Boot doesn't read .env natively, so Gradle does it at launch time.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    val envFile = file("../.env")
+    if (envFile.exists()) {
+        envFile.readLines()
+            .filter { it.isNotBlank() && !it.startsWith("#") && it.contains("=") }
+            .forEach { line ->
+                val idx = line.indexOf('=')
+                val key = line.substring(0, idx).trim()
+                val value = line.substring(idx + 1).trim()
+                environment(key, value)
+            }
+    }
 }
 
 // Production build tasks — bundle React into the Spring Boot jar

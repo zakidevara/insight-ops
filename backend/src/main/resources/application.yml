@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+llm:
+  default-provider: OLLAMA
+
 spring:
   kafka:
     bootstrap-servers: localhost:9092
@@ -37,6 +40,15 @@ spring:
         initialize-schema: true
         dimensions: 768        # nomic-embed-text produces 768-dim vectors
         distance-type: COSINE_DISTANCE
+    openai:
+      # Google's OpenAI-compatible endpoint — uses GEMINI_API_KEY for auth
+      api-key: ${GEMINI_API_KEY:placeholder}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai
+      chat:
+        options:
+          model: gemini-2.0-flash
+      embedding:
+        enabled: false   # embeddings stay with Ollama (nomic-embed-text)
     mcp:
       client:
         # Set to true and uncomment clients below to enable Phase 2 MCP tools.

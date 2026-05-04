@@ -3,7 +3,6 @@ package com.insightops.service;
 import com.insightops.model.Incident;
 import io.modelcontextprotocol.client.McpSyncClient;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,10 +13,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SreAssistant {
 
-    private final ChatClient chatClient;
+    private final LlmProviderService llmProviderService;
 
     // Injected only when MCP is enabled (spring.ai.mcp.client.enabled=true).
-    // Falls back to an empty list so Phase 1 works without Node.js.
     @Autowired(required = false)
     private List<McpSyncClient> mcpClients;
 
@@ -42,7 +40,7 @@ public class SreAssistant {
             - "confidence": "high" | "medium" | "low"
             """.formatted(incident.getService(), incident.getSeverity());
 
-        var req = chatClient.prompt()
+        var req = llmProviderService.incidentChatClient().prompt()
             .system(systemPrompt)
             .user(incident.getMessage());
 
