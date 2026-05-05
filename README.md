@@ -3,6 +3,14 @@
 InsightOps is an AI-powered Site Reliability Engineering assistant that combines **RAG** (Retrieval-Augmented Generation) with **MCP** (Model Context Protocol) to automatically diagnose production incidents. When an alert fires, it retrieves relevant past post-mortems, optionally queries live system tools, and synthesises an actionable diagnosis with remediation steps — all streamed in real time to a React dashboard.
 
 ---
+## Preview
+### Incident Diagnosis
+![alt text](image.png)
+
+### SRE Chat Assistant
+![alt text](image-1.png)
+
+---
 
 ## Table of Contents
 

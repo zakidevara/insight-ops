@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'insight-ops-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      # Use the service name 'app' defined in docker-compose.yml
+      - targets: ['app:8080']

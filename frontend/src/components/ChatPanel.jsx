@@ -130,7 +130,7 @@ export default function ChatPanel() {
       )}
 
       {open && (
-        <div className="fixed bottom-6 right-6 z-40 w-[400px] h-[560px] flex flex-col
+        <div className="fixed bottom-6 right-6 z-40 w-[400px] h-[80vh] flex flex-col
                         rounded-xl bg-[#0c0d10] ring-1 ring-white/[0.08]
                         shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)] animate-slide-up">
           {/* Header */}

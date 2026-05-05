@@ -32,16 +32,16 @@ public class SreAssistant {
 
         String toolInstructions = hasMcp ? """
 
-            You have access to filesystem tools. Use them to gather evidence:
-            - List the project directory to understand the service layout
-            - Read relevant config files (application.yml, docker-compose.yml)
-            - Read recent log files if available
-            - Read source code for the %s service if helpful
-            Use these tools before forming your diagnosis.
-            """.formatted(incident.getService()) : "";
+            You have access to Prometheus query tools. Use them to gather live metrics before diagnosing:
+            - Query error rate for %s over the last 5 minutes
+            - Query p99 request latency for %s
+            - Query JVM heap usage and CPU load
+            - Check if any Prometheus alerts are currently firing
+            Run these queries and include the values in your diagnosis.
+            """.formatted(incident.getService(), incident.getService()) : "";
 
         String toolsUsedField = hasMcp ? """
-            - "toolsUsed": array of objects with "tool" (the exact command run) and "output" (brief summary of result)
+            - "toolsUsed": array of objects with "tool" (the PromQL query) and "output" (the metric values returned)
             """ : "";
 
         String systemPrompt = ("""

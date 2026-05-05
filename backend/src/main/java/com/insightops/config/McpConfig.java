@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Configuration
@@ -19,17 +20,16 @@ public class McpConfig {
 
     @Bean
     public McpSyncClient filesystemMcpClient() {
-        log.info("[MCP] Attempting to start filesystem MCP client...");
+        log.info("[MCP] Attempting to start Prometheus MCP client...");
         try {
             var params = ServerParameters.builder("node")
                     .args(List.of(
-                            "C:/Users/mzaki/AppData/Roaming/npm/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
-                            "C:/Users/mzaki/Documents/Codes/insightops"
+                            "C:/Users/mzaki/Documents/Codes/insightops/mcp-prometheus/server.js"
                     ))
+                    .env(Map.of("PROMETHEUS_URL", "http://localhost:9090"))
                     .build();
 
-            // Tolerate extra fields (e.g. "title") added in newer MCP spec versions
-            // that the M6 McpSchema$Tool class doesn't recognise yet.
+            // Tolerate extra fields added in newer MCP spec versions that M6 McpSchema doesn't know about.
             var mapper = new ObjectMapper()
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -41,13 +41,13 @@ public class McpConfig {
             client.initialize();
 
             var tools = client.listTools().tools();
-            log.info("[MCP] Client initialized. {} tool(s): {}",
+            log.info("[MCP] Prometheus client initialized. {} tool(s): {}",
                     tools.size(),
                     tools.stream().map(t -> t.name()).toList());
 
             return client;
         } catch (Exception e) {
-            log.error("[MCP] Client failed to start — running without filesystem tools. Cause: {}", e.getMessage(), e);
+            log.error("[MCP] Prometheus client failed to start — running without live metrics. Cause: {}", e.getMessage(), e);
             return null;
         }
     }
