@@ -1,6 +1,6 @@
 # InsightOps — Intelligent SRE Assistant
 
-InsightOps is an AI-powered Site Reliability Engineering assistant that combines **RAG** (Retrieval-Augmented Generation) with **MCP** (Model Context Protocol) to automatically diagnose production incidents. When an alert fires, it retrieves relevant past post-mortems, optionally queries live system tools, and synthesises an actionable diagnosis with remediation steps — all streamed in real time to a React dashboard.
+InsightOps is an AI-powered Site Reliability Engineering assistant that combines **RAG** (Retrieval-Augmented Generation) with **MCP** (Model Context Protocol) to automatically diagnose production incidents. When an alert fires, it retrieves relevant past post-mortems, optionally queries live Prometheus metrics, and synthesises an actionable diagnosis with remediation steps — all streamed in real time to a React dashboard. A built-in **SRE Chat** panel lets engineers ask follow-up questions using conversational AI with live system context.
 
 ---
 ## Preview
@@ -21,7 +21,9 @@ InsightOps is an AI-powered Site Reliability Engineering assistant that combines
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Testing the Full Flow](#testing-the-full-flow)
-- [Phase 2 — MCP Tools](#phase-2--mcp-tools-optional)
+- [MCP Tools — Live Prometheus Metrics](#mcp-tools--live-prometheus-metrics)
+- [LLM Provider Switching](#llm-provider-switching)
+- [Post Mortem Management](#post-mortem-management)
 - [Production Build](#production-build)
 - [Environment Variables](#environment-variables)
 
@@ -30,74 +32,107 @@ InsightOps is an AI-powered Site Reliability Engineering assistant that combines
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          InsightOps System                              │
-│                                                                         │
-│  ┌──────────────────────┐          ┌──────────────────────────────────┐ │
-│  │   React Frontend     │          │      Spring Boot Backend         │ │
-│  │   (Vite · Tailwind)  │          │      (Java 21 · Port 8080)       │ │
-│  │                      │◄─REST───►│                                  │ │
-│  │  Dashboard           │          │  ┌────────────────────────────┐  │ │
-│  │  AlertFeed           │◄─WS──────┤  │     WebhookController      │  │ │
-│  │  IncidentDetail      │          │  │  POST /api/webhook         │  │ │
-│  │  ThoughtProcess      │          │  └────────────┬───────────────┘  │ │
-│  │  IngestPanel         │          │               │                  │ │
-│  └──────────────────────┘          │               ▼                  │ │
-│         Port 5173                  │  ┌────────────────────────────┐  │ │
-│                                    │  │       SreAssistant         │  │ │
-│                                    │  │  (Orchestration Service)   │  │ │
-│                                    │  └──────┬──────────┬──────────┘  │ │
-│                                    │         │          │             │ │
-│                                    │         ▼          ▼             │ │
-│                                    │  ┌──────────┐ ┌──────────────┐  │ │
-│                                    │  │ChatClient│ │  MCP Clients │  │ │
-│                                    │  │(Spring AI│ │ (Phase 2)    │  │ │
-│                                    │  │  + RAG   │ │shell/k8s/    │  │ │
-│                                    │  │ Advisor) │ │prometheus    │  │ │
-│                                    │  └────┬─────┘ └──────┬───────┘  │ │
-│                                    │       │              │           │ │
-│                                    └───────┼──────────────┼───────────┘ │
-│                                            │              │             │
-│            ┌───────────────────────────────┼──────────────┼──────────┐  │
-│            │          Data Layer           │              │          │  │
-│            │                              ▼              ▼          │  │
-│            │  ┌─────────────────┐   ┌──────────┐   ┌──────────┐   │  │
-│            │  │   PostgreSQL 16  │   │  Ollama  │   │  Shell / │   │  │
-│            │  │  ┌───────────┐  │   │(LLM Chat │   │  kubectl │   │  │
-│            │  │  │ pgvector  │  │◄──│    +     │   │Prometheus│   │  │
-│            │  │  │ extension │  │   │Embeddings│   │  (MCP)   │   │  │
-│            │  │  │(vec store)│  │   └──────────┘   └──────────┘   │  │
-│            │  │  └───────────┘  │                                  │  │
-│            │  │  ┌───────────┐  │                                  │  │
-│            │  │  │incident_  │  │                                  │  │
-│            │  │  │reports    │  │                                  │  │
-│            │  │  │  table    │  │                                  │  │
-│            │  │  └───────────┘  │                                  │  │
-│            │  └─────────────────┘                                  │  │
-│            └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              InsightOps System                                   │
+│                                                                                  │
+│  ┌──────────────────────────┐          ┌───────────────────────────────────────┐  │
+│  │   React Frontend         │          │       Spring Boot Backend             │  │
+│  │   (Vite · Tailwind · RR) │          │       (Java 21 · Port 8080)          │  │
+│  │                          │◄─REST───►│                                       │  │
+│  │  Sidebar                 │          │  ┌─────────────────────────────────┐  │  │
+│  │  Dashboard / IncidentFeed│◄─WS──────┤  │      WebhookController          │  │  │
+│  │  IncidentDetailPage      │          │  │  POST /api/webhook              │  │  │
+│  │  PostMortemList          │          │  └──────────────┬──────────────────┘  │  │
+│  │  PostMortemDetail        │          │                 │                     │  │
+│  │  ChatPanel               │          │                 ▼                     │  │
+│  │  DeclareIncidentModal    │          │  ┌──────────────────────────────┐     │  │
+│  └──────────────────────────┘          │  │      IncidentProducer       │     │  │
+│         Port 5173                      │  │  (Kafka — async handoff)    │     │  │
+│                                        │  └──────────────┬─────────────┘     │  │
+│                                        │                 │                    │  │
+│                                        │                 ▼                    │  │
+│                                        │  ┌──────────────────────────────┐    │  │
+│                                        │  │    IncidentConsumer          │    │  │
+│                                        │  │  (Kafka listener)           │    │  │
+│                                        │  └──────────┬─────────────────┘    │  │
+│                                        │             │                      │  │
+│                                        │             ▼                      │  │
+│                                        │  ┌──────────────────────────────┐   │  │
+│                                        │  │      SreAssistant            │   │  │
+│                                        │  │  (RAG + MCP orchestration)   │   │  │
+│                                        │  └──────┬──────────┬────────────┘   │  │
+│                                        │         │          │                │  │
+│                                        │         ▼          ▼                │  │
+│                                        │  ┌──────────┐ ┌──────────────────┐  │  │
+│                                        │  │ChatClient│ │  MCP Client      │  │  │
+│                                        │  │(Spring AI│ │ (Prometheus      │  │  │
+│                                        │  │  + RAG   │ │  via custom      │  │  │
+│                                        │  │ Advisor) │ │  Node.js server) │  │  │
+│                                        │  └────┬─────┘ └──────┬───────────┘  │  │
+│                                        │       │              │              │  │
+│                                        └───────┼──────────────┼──────────────┘  │
+│                                                │              │                 │
+│            ┌───────────────────────────────────┼──────────────┼───────────────┐  │
+│            │          Data / Infra Layer       │              │               │  │
+│            │                                   ▼              ▼               │  │
+│            │  ┌─────────────────┐   ┌──────────┐   ┌──────────────────┐      │  │
+│            │  │   PostgreSQL 16  │   │  Ollama  │   │  Prometheus      │      │  │
+│            │  │  ┌───────────┐  │   │  / Gemini│   │  + Grafana       │      │  │
+│            │  │  │ pgvector  │  │◄──│(LLM Chat │   │  (metrics)       │      │  │
+│            │  │  │(vec store)│  │   │    +     │   └──────────────────┘      │  │
+│            │  │  └───────────┘  │   │Embeddings│                             │  │
+│            │  │  ┌───────────┐  │   └──────────┘   ┌──────────────────┐      │  │
+│            │  │  │incident_  │  │                   │     Kafka        │      │  │
+│            │  │  │reports    │  │                   │  (KRaft mode)    │      │  │
+│            │  │  └───────────┘  │                   │  insightops.     │      │  │
+│            │  │  ┌───────────┐  │                   │  incidents topic │      │  │
+│            │  │  │post_      │  │                   └──────────────────┘      │  │
+│            │  │  │mortems    │  │                                             │  │
+│            │  │  └───────────┘  │                                             │  │
+│            │  │  ┌───────────┐  │                                             │  │
+│            │  │  │post_mortem│  │                                             │  │
+│            │  │  │_citations │  │                                             │  │
+│            │  │  └───────────┘  │                                             │  │
+│            │  └─────────────────┘                                             │  │
+│            └─────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
 | Component | Technology | Role |
 |---|---|---|
-| **React Frontend** | React 18 + Vite + Tailwind CSS | Real-time incident dashboard; displays AI reasoning, diagnosis, and remediation |
-| **WebhookController** | Spring MVC | Entry point for incoming alerts (e.g. Alertmanager, PagerDuty, curl) |
-| **IngestController** | Spring MVC | Accepts `.md` and `.pdf` post-mortems for RAG knowledge base |
+| **React Frontend** | React 18 + Vite + Tailwind + React Router | Incident dashboard with sidebar navigation, post mortem browser, and SRE chat |
+| **Sidebar** | React Router `<Link>` | Persistent navigation: Incidents, Postmortems, Declare Incident (⌘K) |
+| **ChatPanel** | Axios + Spring AI | Conversational SRE assistant with history, live metrics injection, and LLM provider toggle |
+| **WebhookController** | Spring MVC | Entry point for incoming alerts; saves report as `IN_PROGRESS`, publishes to Kafka |
+| **IncidentProducer / Consumer** | Spring Kafka | Async analysis pipeline — webhook returns immediately, analysis happens in background |
+| **IngestController** | Spring MVC | Accepts `.md`, `.pdf`, and text post-mortems; stores in both vector store and `post_mortems` table |
 | **ReportController** | Spring MVC | REST API for querying saved incident reports |
-| **SreAssistant** | Spring AI `ChatClient` | Core orchestration: calls the LLM with RAG context + optional MCP tool results |
+| **PostMortemController** | Spring MVC | REST API for post mortems — list, get by ID/ref, get by incident |
+| **ChatController** | Spring MVC | POST `/api/chat` — conversational AI with RAG context and live metrics |
+| **LlmSettingsController** | Spring MVC | GET/POST `/api/settings/llm` — switch between Ollama and Gemini at runtime |
+| **SreAssistant** | Spring AI `ChatClient` | Core orchestration: calls the LLM with RAG context + optional MCP Prometheus tools |
+| **LlmProviderService** | Spring AI | Manages active LLM provider (Ollama / Gemini), builds ChatClient with RAG advisor |
+| **ChatService** | Spring AI | Conversational chat with history, auto-detects metrics questions and injects live data |
+| **MetricsTool** | JMX + static data | Provides live JVM metrics and simulated service/incident metrics for chat context |
+| **PostMortemService** | Spring Data JPA | CRUD for post mortems, markdown parsing, idempotent import |
+| **PostMortemCitationLinker** | Jackson + JPA | Parses `pastIncidents` from LLM JSON response and creates citation links in the join table |
+| **PostMortemImporter** | Spring `ApplicationRunner` | Auto-imports markdown post-mortems from `resources/postmortems/` into Postgres on startup |
+| **PostmortemSeeder** | Spring `ApplicationRunner` | Seeds the vector store with post-mortem embeddings for RAG retrieval |
 | **IngestionService** | Spring AI `VectorStore` | Chunks documents and stores embeddings in pgvector |
-| **PostmortemSeeder** | Spring `ApplicationRunner` | Auto-seeds the vector store with sample post-mortems on first boot |
 | **pgvector** | PostgreSQL 16 extension | Stores document embeddings (768-dim) and performs cosine-similarity search |
 | **Ollama** | Local LLM runtime | Serves `qwen2.5:7b` for chat and `nomic-embed-text` for embeddings |
-| **MCP Servers** | `npx` subprocesses (Phase 2) | Give the LLM live access to shell, Prometheus, and Kubernetes |
+| **Gemini** | Google AI (optional) | Alternative LLM via OpenAI-compatible endpoint — switchable at runtime |
+| **Kafka** | Confluent (KRaft mode) | Decouples alert ingestion from LLM analysis for non-blocking webhook responses |
+| **Prometheus + Grafana** | Monitoring stack | Collects Spring Boot Actuator metrics; Prometheus queried via MCP for live diagnosis |
+| **MCP Prometheus Server** | Custom Node.js | Exposes Prometheus PromQL as MCP tools the LLM can invoke during analysis |
 
 ---
 
 ## How It Works
 
-InsightOps is built around three core ideas that work together:
+InsightOps is built around five core ideas that work together:
 
 ### 1. RAG — Retrieval-Augmented Generation
 
@@ -109,13 +144,26 @@ Rather than relying on the LLM's training data alone, InsightOps maintains a **p
 
 This is why the system correctly links "heap at 92%, frequent Full GC" to *Memory Leak in Order Service v1.2.0* even without any explicit rules.
 
-### 2. MCP — Model Context Protocol (Phase 2)
+### 2. Async Analysis via Kafka
 
-MCP gives the LLM **hands** — the ability to call real tools and read their output before forming a diagnosis. InsightOps acts as an **MCP Host**: it starts lightweight MCP server subprocesses (shell, Prometheus, Kubernetes) via `npx` and registers their tools with the `ChatClient`.
+Alert processing is **non-blocking**. When a webhook arrives:
 
-When the LLM decides it needs live data, it emits a tool-call (e.g. `run_command: "df -h"`), Spring AI intercepts it, routes it to the correct MCP server, and feeds the output back to the model for a second reasoning pass. The model then lists every tool it used and why in the `toolsUsed` field of the response.
+1. `WebhookController` saves the `IncidentReport` with status `IN_PROGRESS` and returns `202 Accepted` immediately.
+2. An `IncidentEvent` is published to the `insightops.incidents` Kafka topic.
+3. `IncidentConsumer` picks up the event, runs `SreAssistant.analyzeIncident()`, and updates the report with the analysis and status `READY`.
+4. The completed report is broadcast via WebSocket — the dashboard updates in real time.
 
-### 3. Structured JSON Output
+This means the caller (Alertmanager, PagerDuty, curl) never waits for the LLM.
+
+### 3. MCP — Model Context Protocol
+
+MCP gives the LLM **hands** — the ability to query live Prometheus metrics before forming a diagnosis. A custom Node.js MCP server (`mcp-prometheus/server.js`) exposes PromQL as tool calls. When the LLM decides it needs live data, it emits a tool-call, Spring AI intercepts it, routes it to the MCP server, and feeds the output back for a second reasoning pass. The model then lists every tool it used in the `toolsUsed` field.
+
+### 4. Post Mortem Database & Citations
+
+Post mortems are stored in a dedicated `post_mortems` Postgres table (alongside the vector store used for RAG). When the LLM cites past incidents in its `pastIncidents` JSON array, `PostMortemCitationLinker` automatically creates rows in the `post_mortem_citations` join table, linking the incident report to the referenced post mortems. The frontend renders these as clickable links in the incident detail view.
+
+### 5. Structured JSON Output + Real-Time Push
 
 The system prompt instructs the LLM to respond exclusively in a JSON envelope:
 
@@ -123,114 +171,74 @@ The system prompt instructs the LLM to respond exclusively in a JSON envelope:
 {
   "diagnosis":     "...",
   "pastIncidents": ["..."],
-  "toolsUsed":     [{ "tool": "...", "reason": "..." }],
+  "toolsUsed":     [{ "tool": "...", "output": "..." }],
   "remediation":   ["step 1", "step 2", "..."],
   "confidence":    "high | medium | low"
 }
 ```
 
-The React frontend parses this JSON and renders each field in a dedicated UI panel (`ThoughtProcess`, `IncidentDetail`). If the LLM returns plain text instead of JSON (e.g. during model warm-up), `ThoughtProcess.jsx` falls back to rendering raw text gracefully.
-
-### 4. Real-Time WebSocket Push
-
-When a new `IncidentReport` is saved to PostgreSQL, `WebhookController` immediately broadcasts it to all connected browsers via Spring's STOMP WebSocket broker on `/topic/reports`. The `useWebSocket` hook in the frontend prepends the new report to the feed without requiring a page refresh.
+The React frontend parses this JSON and renders each field in dedicated UI panels. When a new `IncidentReport` is saved or updated, it is broadcast via Spring's STOMP WebSocket broker on `/topic/reports`. The `useWebSocket` hook in the frontend updates the feed instantly without a page refresh.
 
 ---
 
 ## Sequence Diagrams
 
-### Alert Ingestion & Diagnosis (Phase 1 — RAG only)
+### Alert Ingestion & Diagnosis (Async via Kafka)
 
 ```mermaid
 sequenceDiagram
     actor Caller as Alertmanager / curl
     participant WH as WebhookController
+    participant DB as PostgreSQL
+    participant WS as WebSocket Broker
+    participant KP as Kafka Producer
+    participant KT as Kafka Topic<br/>(insightops.incidents)
+    participant KC as Kafka Consumer
     participant SRE as SreAssistant
     participant CC as ChatClient<br/>(Spring AI)
     participant QAA as QuestionAnswerAdvisor
     participant VEC as pgvector<br/>(Vector Store)
-    participant LLM as Ollama<br/>(qwen2.5:7b)
-    participant DB as PostgreSQL<br/>(incident_reports)
-    participant WS as WebSocket Broker
+    participant LLM as Ollama / Gemini
+    participant MCP as MCP Prometheus<br/>(Node.js)
+    participant CL as CitationLinker
     participant UI as React Dashboard
 
     Caller->>WH: POST /api/webhook {service, message, severity}
-    WH->>SRE: analyzeIncident(alert)
-    SRE->>CC: prompt().system(systemPrompt).user(alertMessage).call()
+    WH->>DB: save IncidentReport (status=IN_PROGRESS)
+    WH->>WS: broadcast IN_PROGRESS report
+    WS-->>UI: live update — new incident (analyzing)
+    WH->>KP: publish IncidentEvent
+    KP->>KT: insightops.incidents
+    WH-->>Caller: 202 Accepted {id, status: IN_PROGRESS}
+
+    KT->>KC: consume IncidentEvent
+    KC->>SRE: analyzeIncident(incident)
+    SRE->>CC: prompt().system(systemPrompt).user(message).call()
 
     CC->>QAA: intercept — embed user query
-    QAA->>LLM: embed("heap at 92% Full GC events")
-    LLM-->>QAA: [0.12, -0.34, …] (768-dim vector)
     QAA->>VEC: similaritySearch(queryVector, topK=5)
-    VEC-->>QAA: [postmortem-001.md chunk, …]
-    QAA->>CC: augmented prompt (system + retrieved context + user query)
+    VEC-->>QAA: [postmortem chunks…]
+    QAA->>CC: augmented prompt (system + context + query)
 
-    CC->>LLM: chat completion request
+    CC->>LLM: chat completion (with MCP tool schemas)
+    LLM-->>CC: tool_call: query_prometheus(PromQL)
+    CC->>MCP: invoke PromQL query
+    MCP-->>CC: metric values
+    CC->>LLM: second pass — reason over metrics + context
     LLM-->>CC: {"diagnosis":…,"pastIncidents":…,"remediation":…}
-    CC-->>SRE: analysis (JSON string)
+    CC-->>SRE: analysis JSON
 
-    SRE-->>WH: analysis string
-    WH->>DB: save IncidentReport
-    DB-->>WH: saved report (with UUID)
-    WH->>WS: convertAndSend("/topic/reports", report)
-    WS-->>UI: STOMP message — new IncidentReport
-    UI->>UI: prepend to AlertFeed, render panels
-    WH-->>Caller: 200 OK {id, analysis, timestamp, …}
+    SRE-->>KC: analysis string
+    KC->>DB: update report (analysis, status=READY)
+    KC->>CL: linkCitations(report, analysis)
+    CL->>DB: insert post_mortem_citations
+    KC->>WS: broadcast completed report
+    WS-->>UI: live update — analysis ready
 ```
 
 ---
 
-### Alert Ingestion & Diagnosis (Phase 2 — RAG + MCP tools)
-
-```mermaid
-sequenceDiagram
-    actor Caller as Alertmanager / curl
-    participant WH as WebhookController
-    participant SRE as SreAssistant
-    participant CC as ChatClient<br/>(Spring AI)
-    participant QAA as QuestionAnswerAdvisor
-    participant VEC as pgvector
-    participant LLM as Ollama<br/>(qwen2.5:7b)
-    participant MCP as MCP Servers<br/>(shell / k8s / prometheus)
-    participant DB as PostgreSQL
-    participant WS as WebSocket Broker
-    participant UI as React Dashboard
-
-    Caller->>WH: POST /api/webhook {service, message, severity}
-    WH->>SRE: analyzeIncident(alert)
-    SRE->>CC: prompt + registered MCP tool schemas
-
-    CC->>QAA: embed & retrieve similar incidents
-    QAA->>VEC: similaritySearch(queryVector)
-    VEC-->>QAA: relevant post-mortem chunks
-    QAA-->>CC: augmented context
-
-    CC->>LLM: first pass — reason + decide which tools to call
-    LLM-->>CC: tool_call: run_command("kubectl get pods -n prod")
-
-    CC->>MCP: invoke shell tool — kubectl get pods
-    MCP-->>CC: pod list with OOMKilled status
-
-    CC->>LLM: second pass — reason over tool output
-    LLM-->>CC: tool_call: query_prometheus("jvm_memory_used_bytes")
-
-    CC->>MCP: invoke prometheus tool — PromQL query
-    MCP-->>CC: metric time-series data
-
-    CC->>LLM: third pass — synthesise final diagnosis
-    LLM-->>CC: {"diagnosis":…,"toolsUsed":[{tool,reason},…],…}
-
-    CC-->>SRE: final analysis JSON
-    SRE-->>WH: analysis string
-    WH->>DB: save IncidentReport
-    WH->>WS: broadcast to /topic/reports
-    WS-->>UI: live update — new incident appears in feed
-    WH-->>Caller: 200 OK IncidentReport
-```
-
----
-
-### Document Ingestion (RAG Knowledge Base)
+### Document Ingestion (RAG Knowledge Base + Post Mortem Storage)
 
 ```mermaid
 sequenceDiagram
@@ -238,26 +246,56 @@ sequenceDiagram
     participant UI as React<br/>(IngestPanel)
     participant IC as IngestController
     participant IS as IngestionService
-    participant SPLIT as TokenTextSplitter<br/>(500 tokens, 50 overlap)
+    participant PMS as PostMortemService
+    participant SPLIT as TokenTextSplitter
     participant EMB as Ollama<br/>(nomic-embed-text)
-    participant VEC as pgvector<br/>(Vector Store)
+    participant VEC as pgvector
+    participant DB as PostgreSQL<br/>(post_mortems)
 
     User->>UI: upload postmortem.md
     UI->>IC: POST /api/ingest/markdown (multipart)
     IC->>IS: ingestMarkdown(file)
-    IS->>IS: MarkdownDocumentReader — parse file
     IS->>SPLIT: split into chunks
-    SPLIT-->>IS: [chunk₁, chunk₂, … chunkₙ]
-
     loop for each chunk
         IS->>EMB: embed(chunkText)
         EMB-->>IS: 768-dim vector
-        IS->>VEC: store(chunk + vector + metadata)
+        IS->>VEC: store(chunk + vector)
     end
-
     IS-->>IC: chunkCount
+
+    IC->>PMS: parseAndSaveMarkdown(postmortemId, content)
+    PMS->>DB: save PostMortem entity (idempotent)
+
     IC-->>UI: {filename, chunks: n}
-    UI->>UI: show "Ingested n chunks from postmortem.md"
+```
+
+---
+
+### SRE Chat (Conversational AI)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as ChatPanel
+    participant CC as ChatController
+    participant CS as ChatService
+    participant MT as MetricsTool
+    participant LLM as Ollama / Gemini
+    participant VEC as pgvector
+
+    User->>UI: "What caused the auth-service outage?"
+    UI->>CC: POST /api/chat {message, history}
+    CC->>CS: chat(request)
+    CS->>CS: detect metrics keywords?
+    alt metrics question
+        CS->>MT: getSystemMetrics() + getServiceMetrics()
+        MT-->>CS: live metric data
+        CS->>CS: inject metrics into user message
+    end
+    CS->>LLM: prompt with RAG context + history
+    LLM-->>CS: conversational response
+    CS-->>CC: response text
+    CC-->>UI: {reply: "..."}
 ```
 
 ---
@@ -267,61 +305,106 @@ sequenceDiagram
 ```
 insightops/
 ├── backend/                               # Spring Boot 3.4 / Java 21
-│   ├── build.gradle.kts                   # Gradle build with Spring AI BOM
+│   ├── build.gradle.kts                   # Gradle build with Spring AI BOM + Kafka
 │   ├── settings.gradle.kts
 │   └── src/main/
 │       ├── java/com/insightops/
-│       │   ├── InsightOpsApplication.java  # Spring Boot entry point
+│       │   ├── InsightOpsApplication.java
 │       │   ├── config/
 │       │   │   ├── AiConfig.java          # ChatClient bean with QuestionAnswerAdvisor
-│       │   │   ├── McpConfig.java         # MCP client override hooks
-│       │   │   ├── WebConfig.java         # CORS for Vite dev server (localhost:5173)
-│       │   │   └── WebSocketConfig.java   # STOMP broker on /ws, topic /topic/reports
+│       │   │   ├── KafkaTopicConfig.java  # insightops.incidents topic definition
+│       │   │   ├── McpConfig.java         # Prometheus MCP client (Node.js stdio)
+│       │   │   ├── WebConfig.java         # CORS for Vite dev server
+│       │   │   └── WebSocketConfig.java   # STOMP broker on /ws
 │       │   ├── controller/
-│       │   │   ├── WebhookController.java # POST /api/webhook — alert entry point
+│       │   │   ├── WebhookController.java # POST /api/webhook — saves + publishes to Kafka
 │       │   │   ├── IngestController.java  # POST /api/ingest/{markdown|pdf|text}
-│       │   │   └── ReportController.java  # GET /api/reports[/{id}]
+│       │   │   ├── ReportController.java  # GET /api/reports[/{id}]
+│       │   │   ├── PostMortemController.java # GET /api/postmortems[/{id}|/ref/{ref}]
+│       │   │   ├── ChatController.java    # POST /api/chat — conversational SRE assistant
+│       │   │   └── LlmSettingsController.java # GET/POST /api/settings/llm
+│       │   ├── dto/
+│       │   │   ├── PostMortemDTO.java
+│       │   │   ├── ChatRequest.java / ChatResponse.java / ChatMessage.java
+│       │   │   └── LlmSettingsRequest.java / LlmSettingsResponse.java
+│       │   ├── event/
+│       │   │   └── IncidentEvent.java     # Kafka event record
+│       │   ├── kafka/
+│       │   │   ├── IncidentProducer.java   # Publishes to insightops.incidents
+│       │   │   └── IncidentConsumer.java   # Consumes, runs analysis, links citations
 │       │   ├── model/
-│       │   │   ├── Alert.java             # Incoming alert payload (POJO)
-│       │   │   └── IncidentReport.java    # JPA entity saved to incident_reports
+│       │   │   ├── Incident.java          # Incoming incident payload (POJO)
+│       │   │   ├── IncidentReport.java    # JPA entity — incident_reports table
+│       │   │   ├── PostMortem.java        # JPA entity — post_mortems table
+│       │   │   ├── PostMortemCitation.java # JPA entity — post_mortem_citations join table
+│       │   │   ├── PostMortemCitationId.java # Composite key for citations
+│       │   │   └── LlmProvider.java       # Enum: OLLAMA, GEMINI
 │       │   ├── repository/
-│       │   │   └── IncidentReportRepository.java
+│       │   │   ├── IncidentReportRepository.java
+│       │   │   ├── PostMortemRepository.java
+│       │   │   └── PostMortemCitationRepository.java
 │       │   ├── seeder/
-│       │   │   └── PostmortemSeeder.java  # Seeds vector store on first boot
+│       │   │   ├── PostMortemImporter.java # Imports postmortem .md files → post_mortems table
+│       │   │   └── PostmortemSeeder.java   # Seeds vector store with embeddings for RAG
 │       │   └── service/
-│       │       ├── SreAssistant.java      # Core RAG + MCP orchestration
-│       │       ├── IngestionService.java  # Chunk → embed → store pipeline
-│       │       └── IncidentReportService.java
+│       │       ├── SreAssistant.java       # Core RAG + MCP orchestration
+│       │       ├── LlmProviderService.java # Manages Ollama/Gemini switching
+│       │       ├── ChatService.java        # Conversational AI with metrics injection
+│       │       ├── MetricsTool.java        # JVM + service + incident metrics
+│       │       ├── IngestionService.java   # Chunk → embed → store pipeline
+│       │       ├── IncidentReportService.java # Persistence + WebSocket broadcast
+│       │       ├── PostMortemService.java  # CRUD + markdown parsing + import
+│       │       └── PostMortemCitationLinker.java # Links pastIncidents → post_mortem_citations
 │       └── resources/
-│           ├── application.yml            # All config (DB, Ollama, pgvector, MCP)
-│           └── postmortems/               # Seed post-mortems (auto-ingested)
+│           ├── application.yml            # All config (DB, Ollama, Gemini, Kafka, MCP)
+│           └── postmortems/               # 23 seed post-mortems (auto-imported)
 │               ├── postmortem-001.md      # Memory Leak — order-service
 │               ├── postmortem-002.md      # Prometheus Scrape Timeout
-│               └── postmortem-003.md      # Connection Pool Exhaustion — auth-service
+│               ├── postmortem-003.md      # Connection Pool Exhaustion — auth-service
+│               └── postmortem-004…023.md  # DNS, Kafka, TLS, Redis, disk, timeouts, etc.
 │
 ├── frontend/                              # React 18 + Vite 5 + Tailwind CSS 3
 │   ├── index.html
-│   ├── vite.config.js                     # Proxy /api → :8080, /ws → :8080 (WS)
+│   ├── vite.config.js                     # Proxy /api → :8080, /ws → :8080
 │   ├── tailwind.config.js
 │   ├── postcss.config.js
 │   └── src/
 │       ├── main.jsx                       # ReactDOM.createRoot entry
-│       ├── App.jsx
+│       ├── App.jsx                        # BrowserRouter + AppShell + Routes
 │       ├── index.css                      # Tailwind directives
 │       ├── api/
-│       │   └── client.js                  # Axios wrapper for all REST calls
+│       │   ├── client.js                  # Axios REST client (reports, postmortems, ingest)
+│       │   ├── chat.js                    # Chat API client
+│       │   └── settings.js               # LLM settings API client
 │       ├── hooks/
 │       │   ├── useWebSocket.js            # STOMP/SockJS subscription hook
 │       │   └── useReports.js              # Fetch + live WebSocket merge
+│       ├── pages/
+│       │   ├── IncidentDetailPage.jsx     # Full incident report view (routed)
+│       │   ├── PostMortemList.jsx          # Browse all post mortems
+│       │   └── PostMortemDetail.jsx        # Single post mortem detail view
 │       └── components/
-│           ├── Dashboard.jsx              # Root layout — header + panels
-│           ├── AlertFeed.jsx              # Scrollable list of incident cards
-│           ├── IncidentDetail.jsx         # Full report view (all panels)
-│           ├── ThoughtProcess.jsx         # Parses toolsUsed + pastIncidents JSON
+│           ├── Sidebar.jsx                # Persistent nav: Incidents, Postmortems, Declare
+│           ├── Dashboard.jsx              # Home — incident feed + declare modal
+│           ├── IncidentFeed.jsx           # Scrollable list of incident cards
+│           ├── IncidentDetail.jsx         # Full report panels + post mortem citation links
+│           ├── ChatPanel.jsx              # Collapsible SRE chat with LLM provider toggle
+│           ├── DeclareIncidentModal.jsx   # ⌘K modal for declaring new incidents
+│           ├── ThoughtProcess.jsx         # Renders toolsUsed + pastIncidents JSON
 │           ├── IngestPanel.jsx            # File upload UI → /api/ingest
-│           └── SeverityBadge.jsx          # P1/P2/P3/P4 colour-coded pill
+│           ├── PostMortemCard.jsx          # Reusable post mortem summary card
+│           ├── SeverityBadge.jsx          # P1/P2/P3/P4 colour-coded pill
+│           ├── StatusPill.jsx             # IN_PROGRESS / READY / FAILED status badge
+│           ├── ConfidenceTag.jsx          # high / medium / low confidence badge
+│           ├── TopBar.jsx                 # Page header bar
+│           └── Avatar.jsx                 # User avatar component
 │
-├── docker-compose.yml                     # pgvector/pgvector:pg16
+├── mcp-prometheus/                        # Custom MCP server for Prometheus
+│   ├── server.js                          # Node.js MCP server — PromQL tool
+│   └── package.json
+│
+├── docker-compose.yml                     # PostgreSQL (pgvector), Kafka, Prometheus, Grafana
+├── prometheus.yml                         # Prometheus scrape config
 ├── .gitignore
 └── README.md
 ```
@@ -334,14 +417,14 @@ insightops/
 |---|---|---|
 | Java | 21+ | Temurin / OpenJDK |
 | Gradle | 8.x | Only needed once to bootstrap the wrapper |
-| Docker + Compose | any recent | Runs pgvector |
-| Node.js | 18+ | Frontend build + optional MCP servers |
+| Docker + Compose | any recent | Runs PostgreSQL, Kafka, Prometheus, Grafana |
+| Node.js | 18+ | Frontend build + MCP Prometheus server |
 | Ollama | any | Serves the LLM and embedding model locally |
 
 > **LLM / Embedding models required in Ollama:**
 > ```bash
-> ollama pull qwen2.5:7b      # chat model (~5.2 GB)
-> ollama pull nomic-embed-text    # embedding model (~274 MB)
+> ollama pull qwen2.5:7b         # chat model (~5.2 GB)
+> ollama pull nomic-embed-text   # embedding model (~274 MB)
 > ```
 
 ---
@@ -352,7 +435,7 @@ insightops/
 
 Make sure the Ollama desktop app is running (or run `ollama serve`).
 
-### 2 — Start PostgreSQL with pgvector
+### 2 — Start infrastructure (PostgreSQL, Kafka, Prometheus, Grafana)
 
 ```bash
 docker compose up -d
@@ -372,12 +455,17 @@ cd backend
 ./gradlew bootRun
 ```
 
-On first boot, `PostmortemSeeder` automatically embeds and stores the three sample post-mortems into pgvector. You will see:
+On first boot:
+- `PostMortemImporter` imports all 23 post-mortem markdown files into the `post_mortems` table
+- `PostmortemSeeder` embeds and stores them into pgvector for RAG retrieval
 
 ```
+Imported postmortem: postmortem-001
+Imported postmortem: postmortem-002
+...
 Seeded postmortem: postmortem-001.md
 Seeded postmortem: postmortem-002.md
-Seeded postmortem: postmortem-003.md
+...
 ```
 
 ### 5 — Start the frontend
@@ -394,6 +482,12 @@ Open **http://localhost:5173**
 
 ## Testing the Full Flow
 
+### Declare an incident via the UI
+
+Press **⌘K** (or click "Declare Incident" in the sidebar) to open the incident declaration modal. Select a service, severity, and describe the issue.
+
+### Declare via API
+
 ```bash
 curl -X POST http://localhost:8080/api/webhook \
   -H "Content-Type: application/json" \
@@ -406,11 +500,15 @@ curl -X POST http://localhost:8080/api/webhook \
 ```
 
 **Expected behaviour:**
-1. RAG retrieves `postmortem-001.md` (memory leak in order-service) via cosine similarity.
-2. `SreAssistant` calls Ollama with the retrieved context and alert message.
-3. Response JSON contains `diagnosis`, `pastIncidents`, `toolsUsed`, `remediation`, `confidence`.
-4. React dashboard receives the report via WebSocket and it appears instantly in the feed.
-5. Clicking the report opens the full view with Thought Process, Diagnosis, and Remediation panels.
+1. Webhook returns `202 Accepted` immediately with `status: IN_PROGRESS`.
+2. The incident appears in the dashboard with an "Analyzing" status pill.
+3. Kafka consumer picks up the event and runs AI analysis (RAG retrieval + optional Prometheus queries).
+4. Once complete, the report updates to "Investigating" with full diagnosis, remediation, and post mortem citation links.
+5. Clicking a cited post mortem navigates to its detail page.
+
+### Browse post mortems
+
+Navigate to `/postmortems` (or click "Postmortems" in the sidebar) to view all imported post mortems.
 
 ### Ingest a custom post-mortem
 
@@ -419,44 +517,91 @@ Via the **Ingest Post-Mortem** panel in the UI (supports `.md` and `.pdf`), or v
 ```bash
 curl -X POST http://localhost:8080/api/ingest/text \
   -H "Content-Type: application/json" \
-  -d '{"content": "# Incident: Redis OOM\n## Root Cause\nMaxmemory policy set to noeviction...", "source": "redis-oom-2025"}'
+  -d '{"content": "# Incident: Redis OOM\nDate: 2025-01-10 | Severity: P1 | Service: cache-service\n\n## Summary\nRedis OOM kill.\n\n## Root Cause\nMaxmemory policy set to noeviction...", "source": "redis-oom-2025"}'
 ```
+
+Ingested documents are stored in both the vector store (for RAG) and the `post_mortems` table (for browsing).
+
+### Use the SRE Chat
+
+Click the chat panel on the right side of the dashboard to ask follow-up questions:
+- *"What caused the last auth-service outage?"*
+- *"Show me current CPU metrics"*
+- *"What should I check when HikariCP connections are exhausted?"*
+
+The chat auto-detects metrics-related questions and injects live system data into the context.
 
 ---
 
-## Phase 2 — MCP Tools (optional)
+## MCP Tools — Live Prometheus Metrics
 
-MCP gives the LLM access to live system state. Enable it by editing `backend/src/main/resources/application.yml`:
+InsightOps includes a custom MCP server (`mcp-prometheus/server.js`) that exposes Prometheus PromQL as tools the LLM can invoke during analysis. The MCP client is configured in `McpConfig.java` and connects via stdio to the Node.js process.
 
-```yaml
-spring:
-  ai:
-    mcp:
-      client:
-        enabled: true
-        clients:
-          shell:
-            transport:
-              type: stdio
-              command: "npx"
-              args: ["-y", "@modelcontextprotocol/server-shell"]
-          # prometheus:
-          #   transport:
-          #     type: stdio
-          #     command: "npx"
-          #     args: ["-y", "@modelcontextprotocol/server-prometheus"]
-          #     env:
-          #       PROMETHEUS_URL: "http://localhost:9090"
-          # kubernetes:
-          #   transport:
-          #     type: stdio
-          #     command: "npx"
-          #     args: ["-y", "@modelcontextprotocol/server-kubernetes"]
+When enabled, the LLM can:
+- Query error rates for specific services
+- Check p99 latency
+- Read JVM heap and CPU metrics
+- Check firing Prometheus alerts
+
+The MCP client starts automatically if Node.js is available. Check backend logs for `[MCP] Prometheus client initialized` to confirm.
+
+**Prometheus** is available at http://localhost:9090 and **Grafana** at http://localhost:3000 (admin/admin).
+
+---
+
+## LLM Provider Switching
+
+InsightOps supports two LLM providers, switchable at runtime without restart:
+
+| Provider | Config | Notes |
+|---|---|---|
+| **Ollama** (default) | Local, no API key | `qwen2.5:7b` for chat, `nomic-embed-text` for embeddings |
+| **Gemini** | Requires `GEMINI_API_KEY` env var | Uses Google's OpenAI-compatible endpoint (`gemini-2.5-flash`) |
+
+Switch providers via the toggle in the ChatPanel or via API:
+
+```bash
+# Check current provider
+curl http://localhost:8080/api/settings/llm
+
+# Switch to Gemini
+curl -X POST http://localhost:8080/api/settings/llm \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "GEMINI"}'
 ```
 
-> **Start with only `shell` first.** Confirm it works (look for tool invocations in the `toolsUsed` field), then enable Prometheus and Kubernetes one at a time.
+To enable Gemini, set the API key in a `.env` file at the project root:
+```
+GEMINI_API_KEY=your-key-here
+```
 
-Requires Node.js and `npx`. Restart the backend after changing the config.
+> **Embeddings always use Ollama** (`nomic-embed-text`) regardless of the active chat provider.
+
+---
+
+## Post Mortem Management
+
+Post mortems are stored in two places for different purposes:
+
+| Storage | Purpose |
+|---|---|
+| `post_mortems` table (PostgreSQL) | Structured data for browsing, detail pages, and citation linking |
+| `vector_store` table (pgvector) | Embeddings for RAG retrieval during incident analysis |
+
+### Database Schema
+
+- **`post_mortems`** — `id`, `postmortemId`, `title`, `incidentDate`, `severity`, `service`, `summary`, `rootCause`, `detection`, `resolution`, `indicators`, timestamps
+- **`post_mortem_citations`** — join table (`incident_report_id`, `post_mortem_id`) — many-to-many relationship between incidents and cited post mortems
+- **`incident_reports`** — `id`, `service`, `severity`, `message`, `analysis`, `status`, `timestamp`
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/postmortems` | List all post mortems |
+| `GET` | `/api/postmortems/{id}` | Get by UUID |
+| `GET` | `/api/postmortems/ref/{postmortemId}` | Get by reference ID (e.g. `postmortem-001`) |
+| `GET` | `/api/incidents/{id}/postmortems` | Get post mortems cited by an incident |
 
 ---
 
@@ -487,6 +632,9 @@ In production, CORS is no longer needed because the React app is served from the
 | `SPRING_DATASOURCE_URL` | No | `jdbc:postgresql://localhost:5432/insightops` | PostgreSQL connection URL |
 | `SPRING_DATASOURCE_USERNAME` | No | `postgres` | DB username |
 | `SPRING_DATASOURCE_PASSWORD` | No | `postgres` | DB password |
-| `PROMETHEUS_URL` | Phase 2 | `http://localhost:9090` | Prometheus base URL for MCP server |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | No | `localhost:9092` | Kafka broker address |
+| `GEMINI_API_KEY` | For Gemini | `placeholder` | Google Gemini API key (enables Gemini provider) |
+| `PROMETHEUS_URL` | For MCP | `http://localhost:9090` | Prometheus base URL for MCP server |
+| `LLM_DEFAULT_PROVIDER` | No | `OLLAMA` | Default LLM provider on startup (`OLLAMA` or `GEMINI`) |
 
-> **No API key required** — InsightOps runs entirely on local Ollama models.
+> **No API key required for default setup** — InsightOps runs entirely on local Ollama models.
