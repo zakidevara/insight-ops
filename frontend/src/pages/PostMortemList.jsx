@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchPostMortems } from '../api/client';
+import { fetchPostMortems, triggerReIndex } from '../api/client';
 import SeverityBadge from '../components/SeverityBadge';
 import TopBar from '../components/TopBar';
 import IngestPanel from '../components/IngestPanel';
@@ -22,6 +22,21 @@ export default function PostMortemList() {
   const [error, setError] = useState(null);
   const [sev, setSev] = useState('All');
   const [q, setQ] = useState('');
+  const [reIndexing, setReIndexing] = useState(false);
+  const [reIndexResult, setReIndexResult] = useState(null);
+
+  const handleReIndex = async () => {
+    setReIndexing(true);
+    setReIndexResult(null);
+    try {
+      const result = await triggerReIndex();
+      setReIndexResult({ ok: true, message: `Job #${result.jobId} started — re-embedding all postmortems.` });
+    } catch {
+      setReIndexResult({ ok: false, message: 'Failed to start re-indexing job.' });
+    } finally {
+      setReIndexing(false);
+    }
+  };
 
   useEffect(() => {
     fetchPostMortems()
@@ -47,10 +62,41 @@ export default function PostMortemList() {
         title="Postmortems"
         subtitle="Searchable corpus · grounds AI suggestions"
         breadcrumbs={null}
-        actions={null}
+        actions={
+          <button
+            onClick={handleReIndex}
+            disabled={reIndexing}
+            className="h-8 px-3 rounded-md bg-violet-500/15 hover:bg-violet-500/25 ring-1 ring-violet-500/30
+                       text-[12px] text-violet-200 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Re-embed all postmortems with the current embedding model"
+          >
+            {reIndexing ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="animate-spin">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.4"/>
+                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/>
+                </svg>
+                Re-indexing…
+              </>
+            ) : (
+              <>↺ Re-index Embeddings</>
+            )}
+          </button>
+        }
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        {/* Re-index result */}
+        {reIndexResult && (
+          <div className={`px-4 py-2.5 rounded-lg text-[12.5px] flex items-center justify-between
+                          ${reIndexResult.ok
+                            ? 'bg-emerald-500/10 ring-1 ring-emerald-500/30 text-emerald-300'
+                            : 'bg-rose-500/10 ring-1 ring-rose-500/30 text-rose-300'}`}>
+            <span>{reIndexResult.message}</span>
+            <button onClick={() => setReIndexResult(null)} className="opacity-60 hover:opacity-100 ml-4">✕</button>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3">
           <SmallStat label="Total postmortems" value={stats.total}/>

@@ -19,6 +19,11 @@ llm:
   default-provider: OLLAMA
 
 spring:
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
   kafka:
     bootstrap-servers: localhost:9092
     admin:

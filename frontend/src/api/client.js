@@ -32,4 +32,7 @@ export const fetchPostMortem = (id) =>
 export const fetchPostMortemsForIncident = (incidentId) =>
   api.get(`/incidents/${incidentId}/postmortems`).then(res => res.data);
 
+export const triggerReIndex = () =>
+  api.post('/admin/reindex').then(res => res.data);
+
 export default api;
